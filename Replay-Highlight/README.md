@@ -1,0 +1,2 @@
+# Replay-Highlight
+A Stand-alone tool for generatingt the code history from the .CSV files produced by the Intellij plugin Show-Your-Work. Choose a file, play, pause, resume, increase speed, fast-forward to see the code writing process be re-created. The highlight represents age, with red representing older and the green representing newer code. You can download the file sample.csv and then play it at https://nn3un.github.io/Replay-Highlight/main.html. 
