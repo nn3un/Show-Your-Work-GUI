@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<!-- HTML5 Hello world by kirupa - http://www.kirupa.com/html5/getting_your_feet_wet_html5_pg1.htm -->
+<html lang="en-us">
+    <head>
+        <script src="script.js"></script>
+        <link rel='stylesheet' href="style.css">
+    </head>
+    <body>
+      <div id="alert" ></div>
+      <input id="fileChooser" name="file" type='file' accept='text/plain' onchange='openFile(event)'><br>
+      <pre><code></code></pre>
+      <div id="controls">
+        <button onclick="fastForward()" id="fastForward" disabled="disabled"> >> </button>
+        <button onclick="play()" id="play" disabled="disabled">Play</button>
+        <button onclick="pause()" id="pause" disabled="disabled">Pause</button>
+        <select name="speed" id="speed">
+            <option selected="selected">1.0</option>
+            <option>5.0</option>
+            <option>10.0</option>
+            <option>20.0</option>
+            <option>50.0</option>
+            <option>100.0</option>
+            <option>500.0</option>
+            <option>1000.0</option>
+        </select>
+        <input type="range" onchange="sliderChanged()" oninput="sliderChanged()" name="" id="slider" value="0" disabled>
+      
+      </div>
+      
+    </body>
+</html>
