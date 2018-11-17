@@ -98,7 +98,7 @@ async function play(){
         }
         //Gather the data: time, type, offset and current string
         entry = data[i];
-        [time, type, offset, toChange] = [parseInt(entry[0]), entry[1], parseInt(entry[2]), entry[3]];
+        [time, type, offset, toChange] = [entry[0], entry[1], entry[2], entry[3]];
         //Update content and the array orderAtIndices with the new entry information
         updateContentAndOrders(i, time, type, offset, toChange);
         updateTokens();
@@ -106,6 +106,7 @@ async function play(){
         [oldHtmlToDisplay, htmlToDisplay] = getHtmlsToDisplay(offset, type, toChange);
         //Find out how much time should be spent showing transitions
         interval = getInterval(time, prevTime);
+        console.log(prevTime);
         //If we've deleted we're going to show the most-recent html with the part being deleted highlighted first
         if(type == "sub") displayHtmlInCode(oldHtmlToDisplay)
         //wait a few ms so that the user can see the transition
@@ -132,8 +133,8 @@ function getInterval(time, prevTime){
     var interval = (time-prevTime)/speed;
     //If the time is greater than 2 seconds, we're going to fast forward
     if (interval > 2000){
-        alert.innerText = getInterval(time-prevTime) + " >> "; //Update the alert div, so it shows how much we moved forward 
-        alert.style.display = "block"; //Immediately hide it
+        alert.innerText = getDelay(time-prevTime) + " >> "; //Update the alert div, so it shows how much we moved forward 
+        alert.style.display = "block"; 
         interval = 1000; //Set the new interval to be a second
     }
     return interval
@@ -203,12 +204,12 @@ async function displayHtmlInCode(html){
     //Scroll to the position where the edit happened
     var modified = document.querySelector('.modified');
     if(modified && !isScrolledIntoView(modified)){
-        await sleep(500); //sleep a little so the scrolling doesn't seem sudden
+        //await sleep(500); //sleep a little so the scrolling doesn't seem sudden
         modified.scrollIntoView();
     }
 }
 
-function getInterval(milisecond){
+function getDelay(milisecond){
     if(milisecond <= msInAMin){
         return Math.round(milisecond/msInASec, 2) + " sec";
     }
@@ -275,7 +276,7 @@ function catchUp(oldIndex, newIndex){
     //This works with fast forward, instead of updating the view, we just update content and the order array. 
     for(i = oldIndex; i < newIndex; i++){
         var entry = data[i];
-        var [time, type, offset, toChange] = [parseInt(entry[0]), entry[1], parseInt(entry[2]), entry[3]];
+        var [time, type, offset, toChange] = [entry[0], entry[1], entry[2], entry[3]];
         updateContentAndOrders(i, time, type, offset, toChange);
     }
 }
@@ -329,26 +330,26 @@ function CSVToArray( strData, strDelimiter ){
             ),
             "gi"
             );
-        var arrData = [[]];
+        var arrData = [];
         var arrMatches = null;
         var previousTime, currentTime;
         while (arrMatches = objPattern.exec( strData )){
-            var strMatchedDelimiter = arrMatches[ 1 ];
-            if (
-                strMatchedDelimiter.length &&
-                (strMatchedDelimiter != strDelimiter)
-                ){
-                arrData.push( [] );
-            }
+            if (!arrMatches[3]) break;
+            var time = parseInt(arrMatches[ 3 ]);
+            arrMatches = objPattern.exec( strData );
+            if (!arrMatches[3]) break;
+            var type = arrMatches[3];
+            arrMatches = objPattern.exec( strData );
+            if (!arrMatches[3]) break;
+            var offset = parseInt(arrMatches[3]);
+            arrMatches = objPattern.exec(strData);
             if (arrMatches[ 2 ]){
-                var strMatchedValue = arrMatches[ 2 ].replace(
-                    new RegExp( "\"\"", "g" ),
-                    "\""
-                    );
+                var toChange = arrMatches[ 2 ].replace(
+                    new RegExp( "\"\"", "g" ),"\"");
             } else {
-                var strMatchedValue = arrMatches[ 3 ];
+                var toChange = arrMatches[ 3 ];
             }
-            arrData[ arrData.length - 1 ].push( strMatchedValue );
+            arrData.push([time, type, offset, toChange]);
         }
         return( arrData );
 }
@@ -396,7 +397,7 @@ function isScrolledIntoView(el) {
     var rect = el.getBoundingClientRect();
     var elemTop = rect.top;
     var elemBottom = rect.bottom;
-    var isVisible = (elemTop >= 20) && (elemBottom <= .6*window.innerHeight);
+    var isVisible = (elemTop >= 0) && (elemBottom <= .6*code.getBoundingClientRect().bottom);
     return isVisible;
 }
 
