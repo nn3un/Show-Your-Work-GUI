@@ -50,12 +50,12 @@ button {
     border: thin;
     border-radius: 10px; 
     color: white;
-    padding: 12px 10px;
+    padding: 12px 6px;
     text-align: center;
     text-decoration: none;
     display: inline-block;
-    font-size: 18px;
-    width: 100px;
+    font-size: 16px;
+    width: 70px;
 }
 
 button:disabled {
@@ -72,7 +72,7 @@ button:disabled {
     background-color: #4380e0;
 }
 
-#fastForward, #reverse{
+#fastForward, #reverse, #restart, #end{
     background-color: white;
     color: black;
     border: thin solid black;
@@ -98,7 +98,11 @@ select{
     background-image: -webkit-gradient(linear,
         left top, 
         right top, 
-        color-stop(0%, #df7164), color-stop(0%, #F5D0CC));
+        color-stop(0%, #df7164), 
+        color-stop(0%, #F5D0CC));
+    background-image: -moz-linear-gradient(left center,
+        #DF7164 0%, #DF7164 0%,
+        #F5D0CC 0%, #F5D0CC 100%);
     border-radius: 6px;
     height: 6px;
 }

@@ -13,6 +13,8 @@ document.addEventListener("DOMContentLoaded", function(event) {
     playButton        = document.getElementById("play");
     fastForwardButton = document.getElementById("fastForward");
     reverseButton     = document.getElementById("reverse");
+    restartButton     = document.getElementById("restart");
+    endButton         = document.getElementById("end");
     slider            = document.getElementById("slider");
     alert             = document.getElementById("alert");
     code              = document.querySelector("code");
@@ -37,7 +39,7 @@ document.addEventListener("DOMContentLoaded", function(event) {
 
 
 //The event listener for the open file
-function openFile() {
+function openFile(event) {
     pause();
     playButton.innerText = "Play"
     var input = event.target;
@@ -49,6 +51,9 @@ function openFile() {
         playButton.disabled        = false;
         fastForwardButton.disabled = false;
         slider.disabled            = false;
+        restartButton.disabled     = false;
+        reverseButton.disabled     = false;
+        endButton.disabled         = false;
         paused                     = true;
         content                    = " ";
         code.innerHTML             = "";
@@ -159,7 +164,6 @@ function getHtmlsToDisplay(offset, type, toChange){
     var indAtContent  = 0; //index to track where we are in the code content
     var oldHtmlToDisplay = ""; //Initialize what the output was displaying
     var htmlToDisplay    = "";//Initialize what the output would display
-    reorganizeOrderAtIndices(); 
     //Loop through the entire content
     while(indAtContent < content.length){
         //We want to be able to highlight the portion we're changing so let's check if we're there
@@ -344,6 +348,16 @@ function reverse(){
     sliderChanged();
 };
 
+function restart(){
+    slider.value = 0;
+    sliderChanged();
+};
+
+function end(){
+    slider.value = slider.max;
+    sliderChanged();
+};
+
 function catchUp(oldIndex, newIndex){
     //This works with fast forward, instead of updating the view, we just update content and the order array. 
     for(i = oldIndex; i < newIndex; i++){
@@ -351,6 +365,7 @@ function catchUp(oldIndex, newIndex){
         var [time, type, offset, toChange] = [entry[0], entry[1], entry[2], entry[3]];
         updateContentAndOrders(i, time, type, offset, toChange);
     }
+    date.innerText = (new Date(data[newIndex][0])).toString();
 }
 
 function sliderChanged(){
@@ -386,6 +401,7 @@ function updateSliderAppearance(){
     slider.style.backgroundImage = '-webkit-gradient(linear, left top, right top, ' +
         'color-stop(' + percent + '%, #df7164), ' +
         'color-stop(' + percent + '%, #F5D0CC))';
+    slider.style.backgroundImage = '-moz-linear-gradient(left center, #DF7164 0%, #DF7164 ' + percent + '%, #F5D0CC ' + percent + '%, #F5D0CC 100%)';
 }
 
 // https://www.bennadel.com/blog/1504-ask-ben-parsing-csv-strings-with-javascript-exec-regular-expression-command.htm
@@ -433,7 +449,7 @@ function CSVToArray( strData, strDelimiter ){
 
 // convert a number to a color using hsl
 function numberToColorHsl(i) {
-    var hue = i * 1.8 / 360;
+    var hue = i * 1.2 / 360;
     var rgb = hslToRgb(hue, 1, .8);
     return 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ', 0.5)'; 
 }

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body>
+	<script>
+		var csvFileText, div;
+		function openFile(event){
+			var input = event.target;
+			var reader = new FileReader();
+			reader.onload = function(){
+				csvFileText = reader.result;
+				var filename = document.getElementById('fileChooser').value;
+ 				filename = filename.split(/(\\|\/)/g).pop().split(".")[0];
+				div = document.querySelector("div");
+				div.innerHTML = div.innerHTML + "<h1>" + filename + "</h1>";
+				getExternalPastesAndSimpleStats();
+				getCompressedCSV();
+				getCSVwithoutTimeStampsAndCopyPastes();
+				getTypingSpeed();
+				getWordTypingTimes();
+			}
+			reader.readAsText(input.files[0]);
+		}
+
+		// https://www.bennadel.com/blog/1504-ask-ben-parsing-csv-strings-with-javascript-exec-regular-expression-command.htm
+		function getExternalPastesAndSimpleStats(){
+			strDelimiter = ",";
+			var copyArray = [];
+			var externalPastes = [];
+			var numOfSubs = 0;
+			var numOfAdds = 0;
+			var addLength = 0;
+			var subLength = 0;
+			var lastCopiedFromDocument = "";
+			var objPattern = new RegExp(
+				(
+            // Delimiters.
+            "(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+            // Quoted fields.
+            "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+            // Standard fields.
+            "([^\"\\" + strDelimiter + "\\r\\n]*))"
+            ),
+				"gi"
+				);
+			var arrMatches = null;
+			var lastCopiedFromDocument = null;
+
+			while (arrMatches = objPattern.exec( csvFileText )){
+				if (!arrMatches[3]) break;
+				var time = parseInt(arrMatches[ 3 ]);
+				arrMatches = objPattern.exec( csvFileText );
+				if (!arrMatches[3]) break;
+				var type = arrMatches[3];
+				arrMatches = objPattern.exec( csvFileText );
+				if (!arrMatches[3]) break;
+				var offset = parseInt(arrMatches[3]);
+				arrMatches = objPattern.exec(csvFileText);
+				if (arrMatches[ 2 ]){
+					var toChange = arrMatches[ 2 ].replace(
+						new RegExp( "\"\"", "g" ),"\"");
+				} else {
+					var toChange = arrMatches[ 3 ];
+				}
+				if (type === "copy"){
+					copyArray.push([time, type, offset, toChange]);
+					lastCopiedFromDocument = toChange;
+				}
+				else if(type === "paste"){
+					if (lastCopiedFromDocument !== toChange){
+						externalPastes.push(toChange);
+					}
+				}
+				else if (type === "add"){
+					numOfAdds += 1
+					addLength += toChange.length;
+				}
+				else if (type === "sub"){
+					numOfSubs += 1
+					subLength += toChange.length;
+				}
+			}
+			htmlToAdd = "(Deleted String Length/Added String Length): " + (subLength*100/addLength).toFixed(2) + "% <br>"
+			+ "External Pastes: <br> <ul>";
+			for (var i = 0; i < externalPastes.length; i++) {
+				htmlToAdd += "<li><pre>" + externalPastes[i] + "</pre> </li>";
+			}
+			htmlToAdd += "</ul> <br>";
+			div.innerHTML = div.innerHTML + htmlToAdd;
+		}
+
+
+		function getCompressedCSV(){
+			var numEntriesInOriginal = 0;
+			var numEntriesInCompressed = 0;
+			var whiteSpaces = new RegExp("\\s|\\n");
+			var quotes = new RegExp("\"", "g");
+			strDelimiter = ",";
+			var compressedCSV = "";
+			var code = " ";
+			var newToChangeToAdd = ""; //The modified toChange for an entry that's going to be added to the compressedCSV
+			var newToChangeToDelete = "";
+			var runningIndex = 0; //To help keep track where we are in the compressed toChange
+			var startIndex = 0; //Will help with inserting into compressed CSV
+			var newType = "";
+			var whiteSpaces = new RegExp("\\s|\\n|,|\"");
+			var objPattern = new RegExp(
+				(
+            // Delimiters.
+            "(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+            // Quoted fields.
+            "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+            // Standard fields.
+            "([^\"\\" + strDelimiter + "\\r\\n]*))"
+            ),
+				"gi"
+				);
+			var arrMatches = null;
+			var lastCopiedFromDocument = null;
+			var prevTime = -1;
+			const thresholdInMillisecond = 750;
+
+			while (arrMatches = objPattern.exec( csvFileText )){
+				//Read the fields one by one
+				if (!arrMatches[3]) break;
+				var time = parseInt(arrMatches[ 3 ]);
+				if (isNaN(time)){
+					break
+				}
+				arrMatches = objPattern.exec( csvFileText );
+				if (!arrMatches[3]) break;
+				var type = arrMatches[3];
+				arrMatches = objPattern.exec( csvFileText );
+				if (!arrMatches[3]) break;
+				var offset = parseInt(arrMatches[3]);
+				if (isNaN(offset)){
+					break
+				}
+				arrMatches = objPattern.exec(csvFileText);
+				if (arrMatches[ 2 ]){
+					//Dealing with quotes inside quotes
+					var toChange = arrMatches[ 2 ].replace(
+						new RegExp( "\"\"", "g" ),"\"");
+				} else {
+					var toChange = arrMatches[ 3 ];
+				}
+				if (type === "copy" || type === "paste"){
+					toChange = toChange.replace(quotes,"\"\"");//Replace quotes with double quotes
+					if (whiteSpaces.exec(toChange)){
+						//If there are white spaces surround with quotes
+						toChange = "\"" + toChange + "\"";
+					}
+					compressedCSV += time + "," + type + "," + offset + "," + toChange + "\r\n";
+					continue;
+				}
+				numEntriesInOriginal += 1;
+				if(time - prevTime < thresholdInMillisecond && time - prevTime >= 0){
+					//The time is short enough for us to compress
+					if(type === "add" && runningIndex == offset){
+						//The add was done next to the last entry, so're still good to compress
+						newToChangeToAdd += toChange; //updating the newToChange
+						runningIndex += toChange.length; //update the runningIndex
+						prevTime = time;
+						continue;
+					}
+					if(type === "sub" && runningIndex == toChange.length + offset){
+						//If moving the offset by the number of characters deleted moves it back to the latest runningIndex, that means the user hasn't moved the caret, so our edits are still continguous, so we can compress
+						runningIndex -= toChange.length;
+						//Check if the deletion has deleted so much that not only has it deleted whatever we added a few ms ago, it also deleted something we haven't added in recent time, if so then our newToChange should be an empty string and newToChangeToDelete should be the part of the not so recent text we deleted. Just update startIndex to keep track of how far back of our oldCode we deleted. 
+						if (runningIndex < startIndex){
+							newToChangeToDelete = toChange.substring(0, startIndex-runningIndex) + newToChangeToDelete;
+							newToChangeToAdd = ""; //Deleted so much, got nothing to add anymore
+							startIndex = runningIndex;
+						}
+						//If that's not the case that means some of our new add is still there, so we should update our newToChange to get rid of the substring that's been deleted
+						else{
+							newToChangeToAdd = newToChangeToAdd.substring(0, newToChangeToAdd.length - toChange.length);
+						}
+						prevTime = time;
+						continue;
+					}
+				}
+				//The time difference wasn't small enough or the user changed the cursor position, so we can't compress, therefore let's add the stored values from the last successful compression to the CSV
+				if (newToChangeToDelete.length > 0){
+					//If there was a net sub, add that to the new CSV before adding the add
+					newToChangeToDelete = newToChangeToDelete.replace(quotes,"\"\"");//Replace quotes with double quotes
+					if (whiteSpaces.exec(newToChangeToDelete)){
+						//If there are white spaces surround with quotes
+						newToChangeToDelete = "\"" + newToChangeToDelete + "\"";
+					}
+					numEntriesInCompressed += 1;
+					compressedCSV += newTime + "," + "sub" + "," + startIndex + "," + newToChangeToDelete + "\r\n";
+				}
+				if (newToChangeToAdd.length > 0){		
+					newToChangeToAdd = newToChangeToAdd.replace(quotes, "\"\"");
+					if (whiteSpaces.exec(newToChangeToAdd)){
+						newToChangeToAdd = "\"" + newToChangeToAdd + "\"";
+					}
+					numEntriesInCompressed += 1;
+					compressedCSV += newTime + "," + "add" + "," + startIndex + "," + newToChangeToAdd + "\r\n";
+				}
+
+				//update all the variables
+				newTime = time;
+				startIndex = offset;
+				if (type == "add"){
+					newToChangeToAdd = toChange;
+					newToChangeToDelete = ""; //Nothing to delete
+					runningIndex = offset + toChange.length;
+				}
+				else if (type == "sub"){
+					newToChangeToDelete = toChange;
+					newToChangeToAdd = "";
+					runningIndex = offset;
+				}
+				prevTime = time;
+ 			}
+ 			//Do the leftovers
+ 			if (newToChangeToDelete.length > 0){
+				//If there was a sub, add that to the new CSV before adding the add
+				newToChangeToDelete = newToChangeToDelete.replace(quotes,"\"\"");//Replace quotes with double quotes
+				if (whiteSpaces.exec(newToChangeToDelete)){
+					//If there are white spaces surround with quotes
+					newToChangeToDelete = "\"" + newToChangeToDelete + "\"";
+				}
+				numEntriesInCompressed += 1;
+				compressedCSV += newTime + "," + "sub" + "," + startIndex + "," + newToChangeToDelete + "\r\n";
+			}
+			if (newToChangeToAdd.length > 0){		
+				newToChangeToAdd = newToChangeToAdd.replace(quotes, "\"\"");
+				if (whiteSpaces.exec(newToChangeToAdd)){
+					newToChangeToAdd = "\"" + newToChangeToAdd + "\"";
+				}
+				numEntriesInCompressed += 1;
+				compressedCSV += newTime + "," + "add" + "," + startIndex + "," + newToChangeToAdd + "\r\n";
+			}
+
+			var filename = document.getElementById('fileChooser').value;
+ 			filename = filename.split(/(\\|\/)/g).pop().split(".")[0];
+			var element = document.createElement('a');
+			element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(compressedCSV));
+			element.setAttribute('download', filename + "_compressed.csv");
+			element.text = "Download Compressed File";
+			div.appendChild(element);
+			div.innerHTML = div.innerHTML + "<br> Rate of compression: " + (numEntriesInCompressed*100/numEntriesInOriginal).toFixed(2) + "% <br>";
+		}
+
+		function getCSVwithoutTimeStampsAndCopyPastes(){
+			var strDelimiter = ",";
+			var truncatedCSV = "";
+			var whiteSpaces = new RegExp("\\s|\\n");
+			var quotes = new RegExp("\"", "g");
+			var objPattern = new RegExp(
+				(
+            // Delimiters.
+            "(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+            // Quoted fields.
+            "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+            // Standard fields.
+            "([^\"\\" + strDelimiter + "\\r\\n]*))"
+            ),
+				"gi"
+				);
+			var arrMatches = null;
+			while (arrMatches = objPattern.exec( csvFileText )){
+				//Read the fields one by one
+				if (!arrMatches[3]) break;
+				var time = parseInt(arrMatches[ 3 ]);
+				if (isNaN(time)){
+					break
+				}
+				arrMatches = objPattern.exec( csvFileText );
+				if (!arrMatches[3]) break;
+				var type = arrMatches[3];
+				arrMatches = objPattern.exec( csvFileText );
+				if (!arrMatches[3]) break;
+				var offset = parseInt(arrMatches[3]);
+				if (isNaN(offset)){
+					break
+				}
+				arrMatches = objPattern.exec(csvFileText);
+				if (arrMatches[ 2 ]){
+					//Dealing with quotes inside quotes
+					var toChange = arrMatches[ 2 ].replace(
+						new RegExp( "\"\"", "g" ),"\"");
+				} else {
+					var toChange = arrMatches[ 3 ];
+				}
+				if (type === "copy" || type === "paste"){
+					continue;
+				}
+				toChange = toChange.replace(quotes,"\"\"");//Replace quotes with double quotes
+				if (whiteSpaces.exec(toChange)){
+					//If there are white spaces surround with quotes
+					toChange = "\"" + toChange + "\"";
+				}
+				truncatedCSV += type + "," + offset + "," + toChange + "\r\n";
+			}
+			var filename = document.getElementById('fileChooser').value;
+ 			filename = filename.split(/(\\|\/)/g).pop().split(".")[0];
+			var element = document.createElement('a');
+			element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(truncatedCSV));
+			element.setAttribute('download', filename + "_no_timestamps.csv");
+			element.text = "Download Version without timestamps and copy pastes (For diffing purposes)";
+			div.appendChild(element);
+			div.innerHTML = div.innerHTML + "<br>"
+		}
+
+		function getTypingSpeed(){
+			var strDelimiter = ",";
+			const thresholdInMillisecond = 6000; //How long can the time difference between two character types be for us to consider the writer was not taking a break or got distracted. 
+			var objPattern = new RegExp(
+					(
+            // Delimiters.
+            "(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+            // Quoted fields.
+            "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+            // Standard fields.
+            "([^\"\\" + strDelimiter + "\\r\\n]*))"
+            ),
+				"gi"
+				);
+			var arrMatches = null;
+			var prevTime = null;
+			var totalTime = 0;
+			var totalTyped = 0;
+			while (arrMatches = objPattern.exec( csvFileText )){
+				//Read the fields one by one
+				if (!arrMatches[3]) break;
+				var time = parseInt(arrMatches[ 3 ]);
+				if (isNaN(time)) break;
+				arrMatches = objPattern.exec( csvFileText );
+				if (!arrMatches[3]) break;
+				var type = arrMatches[3];
+				arrMatches = objPattern.exec( csvFileText );
+				if (!arrMatches[3]) break;
+				var offset = parseInt(arrMatches[3]);
+				if (isNaN(offset)) break;
+				arrMatches = objPattern.exec(csvFileText);
+				if (arrMatches[ 2 ]){
+					//Dealing with quotes inside quotes
+					var toChange = arrMatches[ 2 ].replace(
+						new RegExp( "\"\"", "g" ),"\"");
+				} else {
+					var toChange = arrMatches[ 3 ];
+				}
+				if (!prevTime) {
+					prevTime = time;
+					continue;
+				}
+				var diffTime = time-prevTime;
+				if (type === "add" && toChange.length === 1 && diffTime < thresholdInMillisecond){
+					totalTime += diffTime;
+					totalTyped++;
+				}
+				prevTime = time;
+			}
+			var totalTimeInMin = totalTime/(60*1000)
+			var wpm = totalTyped / (5*totalTimeInMin);
+			div.innerHTML =  div.innerHTML + "<br> Words Per Minute (assuming minimum to be 5 characters / min): " + parseInt(wpm) + "<br>";
+		}
+
+		function getWordTypingTimes(){
+			var strDelimiter = ",";
+			var content = " ";
+			var objPattern = new RegExp(
+					(
+            // Delimiters.
+            "(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+            // Quoted fields.
+            "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+            // Standard fields.
+            "([^\"\\" + strDelimiter + "\\r\\n]*))"
+            ),
+				"gi"
+				);
+			var arrMatches = null;
+			var tracking = true;
+			var startTime = 0;
+			var prevTime = null;
+			var startOffset = 0;
+			var endOffset = 1; //since the log file always starts with a " " for some reason I don't remember
+			var singleLetter = new RegExp("^[a-zA-Z_]{1}$");
+			var wordSeperator = new RegExp("^[^a-zA-Z0-9]{1}$") //using anything other than alphanumerics as word seperators
+			var thresholdInMillisecond = 1000;
+			var wordMap = {} //A word map of the format "word": [numberOfOccurences, totalTime]
+
+			//helper method to figure out if the caret has changed from the last entry
+			function hasCaretChanged(){
+				if(offset < startOffset){
+					return true;
+				}
+				if(offset > endOffset){
+					return true
+				}
+				if(type === "sub" && offset === endOffset){
+					//If the content was "if " then deleting at offset 2, would still be out of range of the current word so we'll call it a caret change
+					return true
+				}
+				return false
+			}
+			while (arrMatches = objPattern.exec( csvFileText )){
+				//Read the fields one by one
+				if (!arrMatches[3]) break;
+				var time = parseInt(arrMatches[ 3 ]);
+				if (isNaN(time)) break;
+				arrMatches = objPattern.exec( csvFileText );
+				if (!arrMatches[3]) break;
+				var type = arrMatches[3];
+				arrMatches = objPattern.exec( csvFileText );
+				if (!arrMatches[3]) break;
+				var offset = parseInt(arrMatches[3]);
+				if (isNaN(offset)) break;
+				arrMatches = objPattern.exec(csvFileText);
+				if (arrMatches[ 2 ]){
+					//Dealing with quotes inside quotes
+					var toChange = arrMatches[ 2 ].replace(
+						new RegExp( "\"\"", "g" ),"\"");
+				} 
+				else {
+					var toChange = arrMatches[ 3 ];
+				}
+				if (type === "copy" || type === "paste"){
+					continue;
+				}
+			    /*
+			    when to add word to word map:
+					-- was tracking and Single wordSeperator added at endOffset or caret changed but the endOffset already had a wordSeperator or this is the last entry (this last case is dealth with at the end)
+			    */
+			    debugger
+			    if(tracking && endOffset > startOffset){
+			    	if ((type === "add" && wordSeperator.exec(toChange) && offset === endOffset) || (hasCaretChanged() && endOffset < content.length && wordSeperator.exec(content[endOffset]))){
+				    	var oldNumOfOccurences = 0;
+						var oldTotalTime = 0;
+						var timeToTypeCurrentWord = prevTime - startTime
+						var currentWord = content.substring(startOffset, endOffset)
+						if(currentWord in wordMap){
+							oldNumOfOccurences = wordMap[currentWord][0]
+							oldTotalTime = wordMap[currentWord][1]
+						}
+						wordMap[currentWord] = [oldNumOfOccurences+1, oldTotalTime + timeToTypeCurrentWord]
+						tracking = false
+				    }
+			    }
+
+			    //Now that we're done with dealing with old words let's update the content
+			    if(type === "add"){
+			    	content = content.substring(0, offset) + toChange + content.substring(offset);
+			    }
+			    else if(type === "sub"){
+			    	content = content.substring(0, offset) + content.substring(offset + toChange.length); 
+			    }
+
+			    /*
+			    when to continue tracking:
+				-- toChange was a single letter
+					-- It was done in a short amount of time
+						-- It was done within the range of the word startOffset <= offset <= endOffset
+							-- After updating the variables if currentWord is empty then reset
+				in every other case just stop
+			    */
+			    if(tracking && singleLetter.exec(toChange) && (!prevTime || prevTime- time < thresholdInMillisecond) && offset >= startOffset){
+			    	if(type === "add" && offset <= endOffset){
+			    		endOffset += 1;
+			    	}
+			    	else if(type === "sub" && offset < endOffset){
+			    		endOffset -= 1;
+			    		if (startOffset === endOffset){
+			    			//If the word becomes an empty string then we should restart the time but keep tracking since there's still a wordSeperator before startOffset
+			    			startTime = time
+			    		}
+			    	}
+			    	else{
+			    		tracking = false;
+			    	}
+			    }
+			    else{
+			    	tracking = false;
+			    }
+			    
+				/*
+				when to reset tracking:
+				*/
+				if(content.length === 0){
+					//when the document is empty
+					tracking = true;
+					startOffset = 0
+					endOffset = 0
+					startTime = time;
+				}
+				if(type === "add" && wordSeperator.exec(toChange[toChange.length-1])){
+					//-- the last character of toString added was a space
+					tracking = true;
+					startOffset = offset + toChange.length;
+					endOffset = startOffset;
+					startTime = time;
+				}
+				else if(hasCaretChanged && (offset === 0 || offset - 1 >= 0 && wordSeperator.exec(content[offset-1]))){
+					//caret changed and the letter right before is a space or the start of the document
+					if (type === "sub"){
+						//if it was a delete then it's stragihtforward
+						tracking = true;
+						startOffset = offset;
+						endOffset = startOffset; 
+						startTime = time;
+					}
+					else if(type === "add" && singleLetter.exec(toChange)){
+						//If the type is a single letter add then we should start tracking
+						tracking = true;
+						startOffset = offset;
+						endOffset = startOffset + 1; //since single letter has been added 
+						startTime = time;
+					}
+				}
+				prevTime = time;
+			}
+			//Add leftover
+			if(tracking){
+				var oldNumOfOccurences = 0;
+				var oldTotalTime = 0;
+				var timeToTypeCurrentWord = prevTime - startTime
+				var currentWord = content.substring(startOffset, endOffset)
+				if(currentWord in wordMap){
+					oldNumOfOccurences = wordMap[currentWord][0]
+					oldTotalTime = wordMap[currentWord][1]
+				}
+				wordMap[currentWord] = [oldNumOfOccurences+1, oldTotalTime + timeToTypeCurrentWord]
+			}
+			var htmlToAdd = "<br> Word occurences (where adds and deletes happen within contiguous indices <br> <table border='1'>	<thead><tr><th>Word</th><th>Number of occurences</th><th>Total Time to Type</th><th>Average Time to Type</th></tr></thead><tbody>"
+			Object.entries(wordMap).forEach(([word, info]) =>{
+				if(word.length > 1){
+					htmlToAdd = htmlToAdd + "<tr><td>" + word + "</td><td>" + info[0] + "</td><td>" + info[1]/1000 + "</td><td>" + (info[1]/(info[0]*1000)).toFixed(3) + "</td></tr>";
+				}
+			})
+			htmlToAdd += "</tbody></table>"
+			div.innerHTML = div.innerHTML + htmlToAdd;
+		}
+	</script>
+	<div>
+	</div>
+	<br>
+	<input id="fileChooser" name="file" type='file' accept='.csv' onchange='openFile(event)'>
+</body>
